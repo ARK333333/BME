@@ -3,6 +3,7 @@ import os
 from dotenv import load_dotenv
 import sqlite3
 import asyncio
+import time
 
 load_dotenv()
 
@@ -11,12 +12,30 @@ api_hash = os.getenv("TELEGRAM_API_HASH")
 
 client = TelegramClient('mySession', api_id, api_hash)
 
+def clear_terminal():
+    os.system('cls' if os.name == 'nt' else 'clear')
+
 def parse(message):
+    clear_terminal()
+    print("🔍 Parsing message...")
+    
+    
     start = message.find("[") + 1
     end = message.find("]") 
     temp = message[start:end]
     
+    clear_terminal()
+    print("🔍 Parsing message...")
+    print("📝 Extracting title...")
+    
+    
     title = temp.split("|")[0].strip()
+
+    clear_terminal()
+    print("🔍 Parsing message...")
+    print("📝 Extracting title... ✅")
+    print("📄 Processing page numbers...")
+    
 
     beginning = temp.split("|")[1].split("-")[0]
     if "صـ" in beginning:
@@ -30,9 +49,24 @@ def parse(message):
     elif "نهاية الكتاب" in last:
         last = -1
 
+    clear_terminal()
+    print("🔍 Parsing message...")
+    print("📝 Extracting title... ✅")
+    print("📄 Processing page numbers... ✅")
+    print("🔗 Extracting link...")
+    
+
     start = message.find("(") + 1
     end = message.find(")") - 1
     link = message[start:end].strip()
+
+    clear_terminal()
+    print("🔍 Parsing message...")
+    print("📝 Extracting title... ✅")
+    print("📄 Processing page numbers... ✅")
+    print("🔗 Extracting link... ✅")
+    print(f"✨ Parsed: {title} (Pages {beginning}-{last})")
+    
 
     return {
         "title":title,
@@ -42,9 +76,18 @@ def parse(message):
     }
 
 def store(title, beginning, end, link):
+    clear_terminal()
+    print("💾 Connecting to database...")
+    
+    
     # 1. Connect (creates file if it doesn't exist)
     conn = sqlite3.connect("mydb.sqlite")
     cursor = conn.cursor()
+
+    clear_terminal()
+    print("💾 Connecting to database... ✅")
+    print("🏗️  Creating table if needed...")
+    
 
     # 2. Create table if not exists
     cursor.execute("""
@@ -57,6 +100,12 @@ def store(title, beginning, end, link):
     )
     """)
 
+    clear_terminal()
+    print("💾 Connecting to database... ✅")
+    print("🏗️  Creating table if needed... ✅")
+    print("📥 Inserting data...")
+    
+
     # 3. Insert data
     data = (title, beginning, end, link)
     cursor.execute("""
@@ -64,36 +113,70 @@ def store(title, beginning, end, link):
     VALUES (?, ?, ?, ?)
     """, data)
 
+    clear_terminal()
+    print("💾 Connecting to database... ✅")
+    print("🏗️  Creating table if needed... ✅")
+    print("📥 Inserting data... ✅")
+    print("💾 Saving changes...")
+    
+
     # 4. Commit + close
     conn.commit()
     conn.close()
 
-async def get_messages(client, limit, link):
-    courses_list = []  # Store parsed messages
-    async for message in client.iter_messages(link, limit, search='drive'):
-        if message.text:  # Check if message has text
-            parsed = parse(message.text)
-            courses_list.append(parsed)
-    return courses_list  # Return the list
+    clear_terminal()
+    print("💾 Connecting to database... ✅")
+    print("🏗️  Creating table if needed... ✅")
+    print("📥 Inserting data... ✅")
+    print("💾 Saving changes... ✅")
+    print(f"🎉 Successfully stored: {title}")
+    
+
+async def get_message(message):
+    clear_terminal()
+    print("📨 Processing new message...")
+    
+    
+    parsed = parse(message)
+    return parsed
 
 chat = str(os.getenv("CHAT"))
 testChat = str(os.getenv("TESTCHAT"))
-@client.on(events.NewMessage(chats=testChat, pattern='.*drive.*'))
+
+@client.on(events.NewMessage(chats=testChat))
 async def handler(event):
-    print("new message found: ", event.message.text)
-    #messages = await client.get_messages(chat, 5, search="drive")
-    #print(messages.stringify())
-    courses = await get_messages(client, 1, testChat)
-    for course in courses:
+    clear_terminal()
+    print("🚨 NEW MESSAGE DETECTED!")
+    print("🔍 Contains 'drive' keyword")
+    print(f"📝 Message: {event.message.text[:50]}...")
+    
+    if ("drive" in event.message.text):
+        course = await get_message(event.message.text)
         store(course["title"], course["beginning"], course["last"], course["link"])
+    
+    clear_terminal()
+    print("✅ MESSAGE PROCESSED SUCCESSFULLY!")
+    print("👀 Listening for new messages...")
 
 async def main():
-    # Now you can use all client methods listed below, like for example...
-    await client.start()
-    await client.run_until_disconnected()
+    clear_terminal()
+    print("🚀 Starting Telegram Bot...")
     
-# with client:
-#     client.loop.run_until_complete(main())
+    
+    clear_terminal()
+    print("🚀 Starting Telegram Bot...")
+    print("🔌 Connecting to Telegram...")
+    
+    await client.start()
+    
+    clear_terminal()
+    print("🚀 Starting Telegram Bot... ✅")
+    print("🔌 Connected to Telegram... ✅")
+    print("👀 Listening for messages with 'drive'...")
+    print("📡 Bot is now active and waiting...")
+    
+    await client.run_until_disconnected()
 
 if __name__ == '__main__':
     asyncio.run(main())
+
