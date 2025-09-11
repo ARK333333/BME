@@ -47,7 +47,10 @@ def parse(message):
     end = message.find("]") 
     temp = message[start:end]
     
-    title = temp.split("|")[0].strip()
+    if "|" in temp:
+        title = temp.replace("|", "")
+    else:
+        title = temp
     
     clear_terminal()
     print("📝 Step 1: EXTRACTING TITLE... ✅")
@@ -94,6 +97,8 @@ def parse(message):
     print("=" * 50)
     time.sleep(1.5)
 
+    downloadable_link = drive_link_to_direct(link)
+    download_from_drive(download_link=downloadable_link, filename=temp)
     return {
         "title": title,
         "beginning": beginning,
@@ -166,9 +171,132 @@ async def get_message(message):
     parsed = parse(message)
     return parsed
 
+import requests
+
+def drive_link_to_direct(link: str) -> str:
+    clear_terminal()
+    print("🔗 Converting Google Drive link...")
+    time.sleep(0.5)
+    
+    # Extract file ID from Google Drive link
+    if "drive.google.com" in link:
+        if "/file/d/" in link:
+            file_id = link.split("/file/d/")[1].split("/")[0]
+        elif "id=" in link:
+            file_id = link.split("id=")[1].split("&")[0]
+        else:
+            return link
+        
+        # Convert to direct download link
+        direct_link = f"https://drive.google.com/uc?export=download&id={file_id}"
+        
+        clear_terminal()
+        print("🔗 Converting Google Drive link... ✅")
+        print(f"📎 Direct download URL created")
+        time.sleep(0.5)
+        
+        return direct_link
+    
+    return link
+
+def download_from_drive(download_link: str, filename: str):
+    clear_terminal()
+    print("📥 STARTING DOWNLOAD...")
+    print("=" * 40)
+    print(f"📂 File: {filename}")
+    print(f"🔗 Source: Google Drive")
+    print("=" * 40)
+    time.sleep(1)
+    
+    try:
+        # Convert to direct download link
+        direct_link = drive_link_to_direct(download_link)
+        
+        clear_terminal()
+        print("📥 Downloading file...")
+        print(f"📂 {filename}")
+        time.sleep(0.5)
+        
+        # Start download with streaming
+        response = requests.get(direct_link, stream=True)
+        response.raise_for_status()
+        
+        # Get file size if available
+        total_size = int(response.headers.get('content-length', 0))
+        
+        clear_terminal()
+        print("📥 Download in progress...")
+        print(f"📂 {filename}")
+        if total_size > 0:
+            print(f"📊 Size: {total_size / (1024*1024):.2f} MB")
+        time.sleep(0.5)
+        
+        # Download and save file
+        with open(filename, 'wb') as file:
+            downloaded = 0
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    file.write(chunk)
+                    downloaded += len(chunk)
+                    
+                    # Show progress every 1MB
+                    if downloaded % (1024*1024) == 0:
+                        clear_terminal()
+                        print("📥 Download in progress...")
+                        print(f"📂 {filename}")
+                        if total_size > 0:
+                            progress = (downloaded / total_size) * 100
+                            print(f"📊 Progress: {progress:.1f}%")
+                        else:
+                            print(f"📊 Downloaded: {downloaded / (1024*1024):.2f} MB")
+        
+        clear_terminal()
+        print("🎉 DOWNLOAD COMPLETE!")
+        print("=" * 40)
+        print(f"📁 File saved: {filename}")
+        print(f"📊 Final size: {os.path.getsize(filename) / (1024*1024):.2f} MB")
+        print("=" * 40)
+        time.sleep(2)
+        os.rename(f"{filename}", f"{filename}.pdf")
+        return filename
+        
+    except requests.exceptions.RequestException as e:
+        clear_terminal()
+        print("❌ DOWNLOAD FAILED!")
+        print(f"🚨 Error: {str(e)}")
+        time.sleep(2)
+        return None
+    except Exception as e:
+        clear_terminal()
+        print("❌ UNEXPECTED ERROR!")
+        print(f"🚨 Error: {str(e)}")
+        time.sleep(2)
+        return None
+
+def download_file(link: str, title: str) -> str:
+    clear_terminal()
+    print("🚀 INITIATING DOWNLOAD SEQUENCE...")
+    time.sleep(1)
+    
+    # Create safe filename
+    filename = f"{title}"
+    
+    clear_terminal()
+    print("🚀 Download preparation...")
+    print(f"📝 Original title: {title}")
+    print(f"📂 Filename: {filename}")
+    time.sleep(1)
+    
+    # Download the file
+    result = download_from_drive(link, filename)
+    
+    if result:
+        return filename
+    else:
+        return None
+
 chat = str(os.getenv("CHAT"))
 testChat = str(os.getenv("TESTCHAT"))
-
 @client.on(events.NewMessage(chats=testChat))
 async def handler(event):
     message_text = event.message.text.lower()
@@ -185,7 +313,7 @@ async def handler(event):
         
         course = await get_message(event.message.text)
         store(course["title"], course["beginning"], course["last"], course["link"])
-        
+
         clear_terminal()
         print("✅ MISSION ACCOMPLISHED!")
         print("🔄 Returning to monitoring mode...")
