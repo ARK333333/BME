@@ -3,19 +3,12 @@ import os
 
 def add_chapter(text: str, folder_name: str, chapter_name: str) -> None:
     import requests
-    
-    print(f"DEBUG: Starting add_chapter with text: {text[:50]}...")
-    
     direct_link = f"https://drive.google.com/uc?export=download&id={text[text.find('(') + 1:text.find(')') - 1].strip().split('/file/d/')[1].split('/')[0] if '/file/d/' in text[text.find('(') + 1:text.find(')') - 1].strip() else text[text.find('(') + 1:text.find(')') - 1].strip().split('id=')[1].split('&')[0]}"
-    print(f"DEBUG: Direct link created: {direct_link}")
-    
+ 
     response = requests.get(direct_link, stream=True)
     response.raise_for_status()
-    print(f"DEBUG: HTTP response status: {response.status_code}")
-
     # Download and save file
     file_name = text[text.find("[") + 1 : text.find("]")].replace("|", "")
-    print(f"DEBUG: file_name extracted: {file_name}")
     
     with open(f"{folder_name if not os.path.isdir(f'{folder_name}/more') else f'{folder_name}/more'}/{file_name}", 'wb') as file:
         downloaded = 0
@@ -24,8 +17,7 @@ def add_chapter(text: str, folder_name: str, chapter_name: str) -> None:
                 file.write(chunk)
                 downloaded += len(chunk)
     os.rename(f"{folder_name}/{file_name}", f"{folder_name}/{file_name}.pdf") if not os.path.isdir(f"{folder_name}/more") else os.rename(f"{folder_name}/more/{file_name}", f"{folder_name}/more/{file_name}.pdf") 
-    print(f"DEBUG: Downloaded {downloaded} bytes")
-
+    
     if not os.path.isdir(f"{folder_name}/more"):
         os.mkdir(f"{folder_name}/more")
         return 
@@ -57,37 +49,28 @@ async def main() -> None:
 
     api_id = os.getenv("TELEGRAM_API_ID")
     api_hash = os.getenv("TELEGRAM_API_HASH")
-    print(f"DEBUG: API credentials loaded")
-    
     client = TelegramClient('mySession', api_id, api_hash)
 
     await client.start()
-    print(f"DEBUG: Telegram client started")
-    
+    print("started..")
+
     chatName = str(os.getenv("TESTCHAT"))
-    print(f"DEBUG: Monitoring chat: {chatName}")
-    
+
     @client.on(events.NewMessage(chats=chatName))
     async def handler(event):
-        print(f"DEBUG: New message received")
-        print(f"DEBUG: Message text: {event.message.text[:100]}...")
-        
+
         book_name = event.message.text.split("|")[0][event.message.text.split("|")[0].find("[") + 1:]
         chapter_name = event.message.text.split("|")[1][:event.message.text.split("|")[1].find("(") - 1]
-        print(f"DEBUG: Book name: {book_name}")
-        print(f"DEBUG: Chapter name: {chapter_name}")
-        
+
         if "drive" in event.message.text:
-            print(f"DEBUG: 'drive' found in message")
+            
             if not os.path.isdir(f"{book_name}"):
                 os.mkdir(book_name)
-                print(f"DEBUG: Created directory: {book_name}")
+                
             if not os.path.isdir(f"{book_name}/{chapter_name}"):
-                print(f"DEBUG: Calling add_chapter function")
+                
                 add_chapter(text=event.message.text, folder_name=book_name, chapter_name=chapter_name)
-        else:
-            print(f"DEBUG: No 'drive' found in message")
-
+            
     await client.run_until_disconnected()
 
 import asyncio
@@ -95,5 +78,5 @@ if __name__ == '__main__':
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        print("🛑 Bot stopped by user")
-        print("👋 Goodbye!")
+        print("closed.")
+        
