@@ -5,75 +5,45 @@ from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, Callb
 
 logger = logging.getLogger(__name__)
 
-# Store bot screaming status
-screaming = False
-
 # Store bot debug status
 debug = False
 
 # Pre-assign menu text
-FIRST_MENU = """<b>🌙 حاسبة منتصف الليل</b>
+FIRST_MENU = """
+الأدوات المتوفرة حاليا:
 
+1- حاسبة منتصف الليل
+2- تحميل ملف من رابط جوجل درايف
+_________________________
+"""
+SECOND_MENU = """<b>🌙 حاسبة منتصف الليل</b>
 <b>الأمر:</b>
-<code>/mn [الشروق] [المغرب]</code>
+<code>/mn [الفجر] [المغرب]</code>
 <b>مثال:</b> 
 <code>/mn 6:09 6:34</code>
-
-<i>اضغط Next للمزيد ⬇️</i>"""
-SECOND_MENU = "coming soon.."
+"""
+GET_PDF_MENU = """
+فقط ارسل رابط المشاركة من جوجل درايف وسيصلك الملف 
+(حاليا مدعوم pdf فقط)
+"""
 
 # Pre-assign button text
-NEXT_BUTTON = "Next"
-BACK_BUTTON = "Back"
-TUTORIAL_BUTTON = "Tutorial"
+NEXT_BUTTON = "التالي"
+BACK_BUTTON = "رجوع"
+DETAILS_BUTTON = "للتفاصيل"
+GET_PDF_BUTTON = "التالي 2"
 
 # Build keyboards
 FIRST_MENU_MARKUP = InlineKeyboardMarkup([[
-    InlineKeyboardButton(NEXT_BUTTON, callback_data=NEXT_BUTTON)
+    InlineKeyboardButton(DETAILS_BUTTON, callback_data=DETAILS_BUTTON)
 ]])
 SECOND_MENU_MARKUP = InlineKeyboardMarkup([
     [InlineKeyboardButton(BACK_BUTTON, callback_data=BACK_BUTTON)],
-    [InlineKeyboardButton(TUTORIAL_BUTTON, url="https://core.telegram.org/bots/api")]
+    [InlineKeyboardButton(GET_PDF_BUTTON, callback_data=GET_PDF_BUTTON)]
 ])
-
-
-def echo(update: Update, context: CallbackContext) -> None:
-    """
-    This function would be added to the dispatcher as a handler for messages coming from the Bot API
-    """
-
-    # Print to console
-    print(f'{update.message.from_user.first_name} wrote {update.message.text}')
-
-    if screaming and update.message.text:
-        context.bot.send_message(
-            update.message.chat_id,
-            update.message.text.upper(),
-            # To preserve the markdown, we attach entities (bold, italic...)
-            entities=update.message.entities
-        )
-    else:
-        # This is equivalent to forwarding, without the sender's name
-        update.message.copy(update.message.chat_id)
-
-
-def scream(update: Update, context: CallbackContext) -> None:
-    """
-    This function handles the /scream command
-    """
-
-    global screaming
-    screaming = True
-
-
-def whisper(update: Update, context: CallbackContext) -> None:
-    """
-    This function handles /whisper command
-    """
-
-    global screaming
-    screaming = False
-
+GET_PDF_MENU_MARKUP = InlineKeyboardMarkup([
+    [InlineKeyboardButton(BACK_BUTTON, callback_data=BACK_BUTTON)],
+])
 
 def start(update: Update, context: CallbackContext) -> None:
     """
@@ -97,12 +67,18 @@ def button_tap(update: Update, context: CallbackContext) -> None:
     text = ''
     markup = None
 
-    if data == NEXT_BUTTON:
+    if data == DETAILS_BUTTON:
+        text = SECOND_MENU
+        markup = SECOND_MENU_MARKUP
+    elif data == NEXT_BUTTON:
         text = SECOND_MENU
         markup = SECOND_MENU_MARKUP
     elif data == BACK_BUTTON:
         text = FIRST_MENU
         markup = FIRST_MENU_MARKUP
+    elif data == GET_PDF_BUTTON:
+        text = GET_PDF_MENU
+        markup = GET_PDF_MENU_MARKUP
 
     # Close the query to end the client-side loading animation
     update.callback_query.answer()
@@ -142,7 +118,7 @@ def mn(update: Update, context: CallbackContext) -> None:
     
     try:
         text =  update.message.text
-        text = text.replace("/mn  ", "").split(" ")
+        text = text.replace("/mn ", "").split(" ")
         
         # Check if we have enough arguments
         if len(text) < 2 or not text[0].strip() or not text[1].strip():
@@ -235,6 +211,30 @@ def debug(update: Update, context: CallbackContext) -> None:
         f"debug mode: {debug}",
     )
 
+def get_pdf(update: Update, context: CallbackContext):
+        import requests
+        import io
+
+        context.bot.send_message(
+        update.message.chat_id,
+        "يتم تحميل ...الملف"
+        )
+
+        text = update.message.text
+        id = text.split('/file/d/')[1].split('/')[0] if '/file/d/' in text else text.split('id=')[1].split('&')[0]
+
+        direct_link = f"https://drive.google.com/uc?export=download&id={id}"
+        response = requests.get(direct_link, stream=True)
+        response.raise_for_status()
+
+        file_buffer = io.BytesIO(response.content)
+        file_buffer.name = f"{id}.pdf"
+
+        context.bot.send_document(
+        chat_id=update.message.chat_id,
+        document=file_buffer
+        )
+
 def main() -> None:
     from dotenv import load_dotenv
     import os
@@ -247,8 +247,6 @@ def main() -> None:
     dispatcher = updater.dispatcher
 
     # Register commands
-    dispatcher.add_handler(CommandHandler("scream", scream))
-    dispatcher.add_handler(CommandHandler("whisper", whisper))
     dispatcher.add_handler(CommandHandler("start", start))
     dispatcher.add_handler(CommandHandler("mn", mn))
     dispatcher.add_handler(CommandHandler("debug", debug))
@@ -257,14 +255,12 @@ def main() -> None:
     dispatcher.add_handler(CallbackQueryHandler(button_tap))
 
     # Echo any message that is not a command
-    dispatcher.add_handler(MessageHandler(~Filters.command, echo))
-
+    dispatcher.add_handler(MessageHandler(Filters.regex(r'.*drive.*'), get_pdf))
     # Start the Bot
     updater.start_polling()
 
     # Run the bot until you press Ctrl-C
     updater.idle()
-
 
 if __name__ == '__main__':
     main()
